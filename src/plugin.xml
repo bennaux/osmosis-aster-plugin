@@ -12,6 +12,7 @@
         <library id="code" path="/" type="code"/>
     </runtime>
 	<!--These are library-files we require including our own code. -->
+        <!-- TODO Benno hier geotools einbauen? -->
 
 
     <extension plugin-id="org.openstreetmap.osmosis.core.plugin.Core"

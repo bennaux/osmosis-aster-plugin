@@ -38,6 +38,9 @@ import org.openstreetmap.osmosis.core.task.v0_6.SinkSource;
  * 
  * @author Dominik Paluch
  * @modified Robert Greil
+ * TODO Benno Javadoc
+ * TODO Benno Ueberpruefen, dass es nur ein Band in der ASTER-Datei gibt
+ * TODO Benno Datei-Oeffnen-Fehler abfangen (testen!)
  */
 public class SrtmPlugin_task implements SinkSource, EntityProcessor {
 
@@ -45,10 +48,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
     private String tagName = "height";
     private Sink sink;
     private File localDir = new File("./");
-    private String srtm_base_url = "";
-    private List<String> srtm_sub_dirs;
     private boolean tmpActivated = false;
-    private boolean localOnly = false;
     private boolean replaceExistingTags = true;
     private Map<File, SoftReference<BufferedInputStream>> srtmMap = new HashMap<>();
     private Map<String, Integer> map_failed_srtm = new HashMap<>();
@@ -63,8 +63,8 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
      * @param localOnly should only local available files be used? true/false
      * @param replaceExistingTags replace existing height tags? true/false
      */
-    public SrtmPlugin_task(final String srtm_base_url, final List<String> srtm_sub_dirs, final File localDir, 
-            final boolean tmp, final boolean localOnly, final boolean replaceExistingTags, String tagName) {
+    public SrtmPlugin_task(final File localDir, 
+            final boolean tmp, final boolean replaceExistingTags, String tagName) {
         if (!localDir.exists()) {
             if (!localDir.mkdirs()) {
                 throw new IllegalArgumentException("Can not create directory " + localDir.getAbsolutePath());
@@ -74,11 +74,8 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
             throw new IllegalArgumentException("Not a directory " + localDir.getAbsolutePath());
         }
 
-        this.srtm_base_url = srtm_base_url;
-        this.srtm_sub_dirs = srtm_sub_dirs;
         this.localDir = localDir;
         tmpActivated = tmp;
-        this.localOnly = localOnly;
         this.replaceExistingTags = replaceExistingTags;
         this.tagName = tagName;
     }
@@ -93,7 +90,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
      * @param localOnly should only local available files be used? true/false
      * @param replaceExistingTags replace existing height tags? true/false
      */
-    public SrtmPlugin_task(final File localDir, final boolean tmp, final boolean localOnly, final boolean replaceExistingTags) {
+    public SrtmPlugin_task(final File localDir, final boolean tmp, final boolean replaceExistingTags) {
         if (!localDir.exists()) {
             if (!localDir.mkdirs()) {
                 throw new IllegalArgumentException("Can not create directory " + localDir.getAbsolutePath());
@@ -104,13 +101,9 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         }
 
         SrtmPlugin_factory f = new SrtmPlugin_factory();
-        f.readServerProperties();
-        this.srtm_base_url = f.getDefaultServerBase();
-        this.srtm_sub_dirs = f.getDefaultServerSubDirs();
 
         this.localDir = localDir;
         tmpActivated = tmp;
-        this.localOnly = localOnly;
         this.replaceExistingTags = replaceExistingTags;
     }
 
