@@ -180,7 +180,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
     
     private double asterHeight(double lat, double lon) {
         String filename = generateFileName(lat, lon);
-        if (this.missingAsterTiles.containsKey("filename")) {
+        if (this.missingAsterTiles.containsKey(filename)) {
             log.fine("ASTER tile " + filename + " already marked as missing. Returning NaN.");
             return Double.NaN;
         }
@@ -196,13 +196,16 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         if (coverage == null) {
             File asterFile = new File(this.asterDir, filename);
             try {
+                System.out.println("Trying to load ASTER file " + filename); // TODO Benno wech
                 GeoTiffReader geotiffreader = new GeoTiffReader(asterFile);
                 coverage = (GridCoverage2D) geotiffreader.read(null);
             }
-            catch (IOException e) {
+            catch (IOException | IllegalArgumentException e) {
                 // File not found!
+                this.addMissingTile((int)Math.floor(lat), (int)Math.floor(lon), filename);
                 this.log.fine("Added tile " + filename + " to missing tiles.");
                 this.log.severe("Missing file: " + filename);
+                System.out.println("Missing file: " + filename); // TODO Benno wech
                 return Double.NaN;
             }
             this.asterMap.put(filename, new SoftReference<>(coverage));
