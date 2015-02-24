@@ -13,6 +13,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.NumberFormat;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +32,18 @@ import org.openstreetmap.osmosis.core.domain.v0_6.Node;
 import org.openstreetmap.osmosis.core.domain.v0_6.Tag;
 import org.openstreetmap.osmosis.core.task.v0_6.Sink;
 import org.openstreetmap.osmosis.core.task.v0_6.SinkSource;
+import javax.media.jai.Interpolation;
+import javax.media.jai.InterpolationBilinear;
+import org.geotools.coverage.grid.GridCoordinates2D;
+import org.geotools.coverage.grid.GridCoverage2D;
+import org.opengis.coverage.grid.GridEnvelope;
+import org.geotools.coverage.grid.GridGeometry2D;
+import org.geotools.coverage.grid.InvalidGridGeometryException;
+import org.geotools.gce.geotiff.GeoTiffReader;
+import org.geotools.geometry.DirectPosition2D;
+import org.geotools.geometry.Envelope2D;
+import org.opengis.geometry.DirectPosition;
+import org.opengis.referencing.operation.TransformException;
 
 /**
  * main class which implements all necessary methods for
@@ -38,80 +51,38 @@ import org.openstreetmap.osmosis.core.task.v0_6.SinkSource;
  * 
  * @author Dominik Paluch
  * @modified Robert Greil
+ * @modified Benno Kühnl
+ * TODO Benno javadoc
  */
 public class SrtmPlugin_task implements SinkSource, EntityProcessor {
 
     private static final Logger log = Logger.getLogger(SrtmPlugin_task.class.getName());
     private String tagName = "height";
     private Sink sink;
-    private File localDir = new File("./");
-    private String srtm_base_url = "";
-    private List<String> srtm_sub_dirs;
-    private boolean tmpActivated = false;
-    private boolean localOnly = false;
+    private File asterDir = new File("./");
     private boolean replaceExistingTags = true;
-    private Map<File, SoftReference<BufferedInputStream>> srtmMap = new HashMap<>();
-    private Map<String, Integer> map_failed_srtm = new HashMap<>();
+    private Map<File, SoftReference<BufferedInputStream>> srtmMap = new HashMap<>(); // TODO Benno Wech
+    private Map<String, SoftReference<GridCoverage2D>> asterMap = new HashMap<>();
+    private Map<String, AsterTile> missingAsterTiles = new HashMap<>();
+    
+    private Interpolation interpolation;
 
     /**
      * Constructor <br>
      * 
-     * @param srtm_base_url base URL of server
-     * @param srtm_sub_dirs subdirectories seperated by semicolon
-     * @param localDir local directory for downloading of srtm files
-     * @param tmp is @localDir the tempdirectory? true/false
-     * @param localOnly should only local available files be used? true/false
+     * @param asterDir local directory for downloading of srtm files
      * @param replaceExistingTags replace existing height tags? true/false
+     * 
      */
-    public SrtmPlugin_task(final String srtm_base_url, final List<String> srtm_sub_dirs, final File localDir, 
-            final boolean tmp, final boolean localOnly, final boolean replaceExistingTags, String tagName) {
-        if (!localDir.exists()) {
-            if (!localDir.mkdirs()) {
-                throw new IllegalArgumentException("Can not create directory " + localDir.getAbsolutePath());
-            }
+    public SrtmPlugin_task(final File asterDir, final boolean replaceExistingTags, String tagName) {
+        if (!asterDir.exists() || !asterDir.isDirectory()) {
+            throw new IllegalArgumentException("Not a directory " + asterDir.getAbsolutePath());
         }
-        if (!localDir.isDirectory()) {
-            throw new IllegalArgumentException("Not a directory " + localDir.getAbsolutePath());
-        }
-
-        this.srtm_base_url = srtm_base_url;
-        this.srtm_sub_dirs = srtm_sub_dirs;
-        this.localDir = localDir;
-        tmpActivated = tmp;
-        this.localOnly = localOnly;
+        this.asterDir = asterDir;
         this.replaceExistingTags = replaceExistingTags;
         this.tagName = tagName;
-    }
-
-    /**
-     * Constructor2 <br>
-     * srtm_base_url and srtm_sub_dirs are directly read from the srtmservers.properties
-     * file without any possible interception
-     * 
-     * @param localDir local directory for downloading of srtm files
-     * @param tmp is localDir the tempdirectory? true/false
-     * @param localOnly should only local available files be used? true/false
-     * @param replaceExistingTags replace existing height tags? true/false
-     */
-    public SrtmPlugin_task(final File localDir, final boolean tmp, final boolean localOnly, final boolean replaceExistingTags) {
-        if (!localDir.exists()) {
-            if (!localDir.mkdirs()) {
-                throw new IllegalArgumentException("Can not create directory " + localDir.getAbsolutePath());
-            }
-        }
-        if (!localDir.isDirectory()) {
-            throw new IllegalArgumentException("Not a directory " + localDir.getAbsolutePath());
-        }
-
-        SrtmPlugin_factory f = new SrtmPlugin_factory();
-        f.readServerProperties();
-        this.srtm_base_url = f.getDefaultServerBase();
-        this.srtm_sub_dirs = f.getDefaultServerSubDirs();
-
-        this.localDir = localDir;
-        tmpActivated = tmp;
-        this.localOnly = localOnly;
-        this.replaceExistingTags = replaceExistingTags;
+        
+        this.interpolation = new InterpolationBilinear();
     }
 
     @Override
@@ -131,8 +102,8 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         //backup lat and lon of node entity
         double lat = node.getLatitude();
         double lon = node.getLongitude();
-        //try to get srtm height
-        Double srtmHeight = new Double(srtmHeight(lat, lon));
+        //try to get aster height
+        Double asterHeight = new Double(asterHeight(lat, lon));
 
         //look for existing height tag
         Collection<Tag> tags = node.getTags();
@@ -148,7 +119,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         //check if it should be replaced or not
         boolean addHeight = true;
         if (pbf_tag != null) {
-            if (srtmHeight.isNaN()) {
+            if (asterHeight.isNaN()) {
                 addHeight = false;
             } else {
                 if (replaceExistingTags) {
@@ -159,9 +130,9 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
             }
         }
 
-        //add new srtm height tag
+        //add new aster height tag
         if (addHeight) {
-            tags.add(new Tag(tagName, srtmHeight.toString()));
+            tags.add(new Tag(tagName, asterHeight.toString()));
         }
 
         //create new node entity with new srtm height tag
@@ -206,212 +177,180 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
     public void initialize(Map<String, Object> metaData) {
     	// added in osmosis 0.41
     }
-
-    /**
-     * Determine the filename of the srtm file
-     * corresponding to the lat and lon coordinates
-     * of the actual node
-     * @param lat latitue
-     * @param lon longitude
-     * @return srtm height
-     */
-    private double srtmHeight(double lat, double lon) {
-        int nlat = Math.abs((int) Math.floor(lat));
-        int nlon = Math.abs((int) Math.floor(lon));
-        double val;
-        String ID_file = "";
-        try {
-            NumberFormat nf = NumberFormat.getInstance();
-            String NS, WE;
-            String f_nlat, f_nlon;
-
-            if (lat > 0) {
-                NS = "N";
-            } else {
-                NS = "S";
-            }
-            if (lon > 0) {
-                WE = "E";
-            } else {
-                WE = "W";
-            }
-
-            nf.setMinimumIntegerDigits(2);
-            f_nlat = nf.format(nlat);
-            nf.setMinimumIntegerDigits(3);
-            f_nlon = nf.format(nlon);
-
-            File file = new File(NS + f_nlat + WE + f_nlon + ".hgt");
-
-            ID_file = file.getName();
-            if (map_failed_srtm.containsKey(ID_file)) {
-//                log.fine("STRM file " + ID_file + " already blacklisted, Returning height: 0.0");
-                return Double.NaN;
-            }
-            double ilat = getILat(lat);
-            double ilon = getILon(lon);
-            int rowmin = (int) Math.floor(ilon);
-            int colmin = (int) Math.floor(ilat);
-            double[] values = new double[4];
-            values[0] = getValues(file, rowmin, colmin);
-            values[1] = getValues(file, rowmin + 1, colmin);
-            values[2] = getValues(file, rowmin, colmin + 1);
-            values[3] = getValues(file, rowmin + 1, colmin + 1);
-            double coefrowmin = rowmin + 1 - ilon;
-            double coefcolmin = colmin + 1 - ilat;
-            double val1 = values[0] * coefrowmin + values[1] * (1 - coefrowmin);
-            double val2 = values[2] * coefrowmin + values[3] * (1 - coefrowmin);
-            val = val1 * coefcolmin + val2 * (1 - coefcolmin);
-        } catch (Exception e) {
-            log.log(Level.SEVERE, "Invalid height format detected in {0} for lat={1} | lon={2}\n returning Double.NaN", new Object[]{ID_file, lat, lon});
+    
+    private double asterHeight(double lat, double lon) {
+        String filename = generateFileName(lat, lon);
+        if (this.missingAsterTiles.containsKey("filename")) {
+            log.fine("ASTER tile " + filename + " already marked as missing. Returning NaN.");
             return Double.NaN;
         }
-        return val;
-    }
-
-    private static double getILat(double lat) {
-        double dlat = lat - Math.floor(lat);
-        double ilat = dlat * 1200;
-        return ilat;
-    }
-
-    private static double getILon(double lon) {
-        double dlon = lon - Math.floor(lon);
-        double ilon = dlon * 1200;
-        return ilon;
-    }
-
-    private short readShort(BufferedInputStream in) throws IOException {
-        int ch1 = in.read();
-        int ch2 = in.read();
-        return (short) ((ch1 << 8) + (ch2));
-    }
-
-    private double getValues(File file, int rowmin, int colmin) throws MalformedURLException, FileNotFoundException, IOException {
-        file = new File(localDir, file.getName());
-        boolean ex1 = false;
-        URL exUrl = new URL("http://127.0.0.1/");
-        if (!file.exists()) {
-            String ID_file = file.getName();
-            //if srtm filename is already blacklisted
-            //return height 0
-            if (map_failed_srtm.containsKey(ID_file)) {
-//                log.fine("SRTM file " + ID_file + " already blacklisted, Returning height: Double.NaN");
-                return Double.NaN;
-            }
-            if (!localOnly) {
-                log.log(Level.FINE, "Local SRTM file ''{0}'' not found. Trying to uncompress.", file.getName());
-            }
-            File zipped = new File(localDir, file.getName() + ".zip");
-
-            String subDir = "";
-            if (!localOnly) {
-                if (!zipped.exists()) {
-                    log.log(Level.FINE, "Local zipped SRTM file ''{0}.zip'' not found. Trying to download from server.", file.getName());
-                    for (String srv_subdir : srtm_sub_dirs) {
-                        String url_rm_file = srtm_base_url + srv_subdir + file.getName() + ".zip";
-                        exUrl = new URL(url_rm_file);
-                        if (urlExist(exUrl)) {
-                            ex1 = true;
-                            subDir = srv_subdir;
-                            break;
-                        }
-                    }
-                    //if zipped srtm file cannot be found at any subdirectory
-                    //return height Double.NaN
-                    if (!ex1) {
-                        log.log(Level.FINE, "Remote zipped SRTM file ''{0}.zip'' not found. Returning no height", file.getName());
-                        map_failed_srtm.put(file.getName(), 1);
-                        return Double.NaN;
-                    }
-                }
-            } else {
-                //if local files only is true and no matching srtm file is found
-                //return height Double.NaN;
-                return Double.NaN;
-            }
-
-            ZipFile zipfile;
-            File srtmzip = null;
-            if (ex1) {
-                log.log(Level.FINE, "Remote zipped SRTM file ''{0}.zip'' found in server subdir ''{1}''. Downloading...", new Object[]{file.getName(), subDir});
-                BufferedOutputStream outp;
-                try (InputStream inp = new BufferedInputStream(exUrl.openStream())) {
-                    srtmzip = File.createTempFile(file.getName(), ".zip", localDir);
-                    outp = new BufferedOutputStream(new FileOutputStream(srtmzip), 1024);
-                    copyInputStream(inp, outp);
-                }
-                outp.close();
-                zipfile = new ZipFile(srtmzip, ZipFile.OPEN_READ);
-            } else {
-                zipfile = new ZipFile(zipped, ZipFile.OPEN_READ);
-            }
-            InputStream inp = zipfile.getInputStream(zipfile.getEntry(file.getName()));
-            BufferedOutputStream outp = new BufferedOutputStream(new FileOutputStream(file), 1024);
-
-            copyInputStream(inp, outp);
-            outp.flush();
-
-            if (srtmzip != null) {
-                srtmzip.deleteOnExit();
-            }
-            if (tmpActivated) {
-                srtmzip.deleteOnExit();
-                file.deleteOnExit();
-            }
-            log.log(Level.FINE, "Uncompressed zipped SRTM file ''{0}.zip'' to ''{1}''.", new Object[]{zipped.getName(), file.getName()});
-
+        
+        GridCoverage2D coverage = null;
+        /*
+         * Try to fetch a SoftReference to our coverage from this.asterMap and try to get the Coverage from the SoftReference.
+         */
+        SoftReference<GridCoverage2D> coverageReference = this.asterMap.get(filename);
+        if (coverageReference != null) {
+            coverage = coverageReference.get();
         }
-
-        //if file can not be succesfully downloaded
-        //or any other error occurs which prevents the 
-        //normal use of the srtm file
-        //return height Double.NaN;
-        if (!file.exists()) {
+        if (coverage == null) {
+            File asterFile = new File(this.asterDir, filename);
+            try {
+                GeoTiffReader geotiffreader = new GeoTiffReader(asterFile);
+                coverage = (GridCoverage2D) geotiffreader.read(null);
+            }
+            catch (IOException e) {
+                // File not found!
+                this.log.fine("Added tile " + filename + " to missing tiles.");
+                this.log.severe("Missing file: " + filename);
+                return Double.NaN;
+            }
+            this.asterMap.put(filename, new SoftReference<>(coverage));
+        }
+        return this.getInterpolatedElevation(coverage, lon, lat);
+    }
+    
+    private void addMissingTile(int lat, int lon, String filename) {
+        if (!this.missingAsterTiles.containsKey(filename)) {
+            this.missingAsterTiles.put(filename, new AsterTile(lat, lon));
+        }
+    }
+    
+    private void addMissingTile(int lat, int lon) {
+        this.addMissingTile(lat, lon, generateFileName(lat, lon));
+    }
+    
+    private String generateFileName(double lat, double lon) {
+        /*
+         * Determine filename
+         * The filename consists of ASTGTM2_N<y>E<x>.tif with x being the longitude in three digits and y being the latitude in two digits of the center of the lower left pixel. Example: ASTGTM2_N47E010.tif covers 47°--48° N / 10°--11° E.
+         */
+        int lowerLatitude = Math.abs((int) Math.floor(lat));
+        int lowerLongitude = Math.abs((int) Math.floor(lon));
+        String filename = "";
+        String filename_northSouth, filename_westEast, filename_lowerLatitude, filename_lowerLongitude;
+        
+        if (lat > 0) {
+            filename_northSouth = "N";
+        } else {
+            filename_northSouth = "S";
+        }
+        if (lon > 0) {
+            filename_westEast = "E";
+        } else {
+            filename_westEast = "W";
+        }
+        
+        NumberFormat numberFormat = NumberFormat.getInstance();
+        numberFormat.setMinimumIntegerDigits(2);
+        filename_lowerLatitude = numberFormat.format(lowerLatitude);
+        numberFormat.setMinimumIntegerDigits(3);
+        filename_lowerLongitude = numberFormat.format(lowerLongitude);
+        
+        filename = "ASTGTM2_" + filename_northSouth + filename_lowerLatitude + filename_westEast + filename_lowerLongitude + ".tif";
+        this.log.log(Level.FINER, "Generated filename: " + filename);
+        return filename;
+    }
+    
+    private double getInterpolatedElevation(GridCoverage2D coverage, double x, double y) {
+        DirectPosition location = new DirectPosition2D(x, y);
+        try {
+            return this.getInterpolatedElevation(coverage, location);
+        } catch (InvalidGridGeometryException | TransformException ex) {
+            Logger.getLogger(SrtmPlugin_task.class.getName()).log(Level.SEVERE, null, ex);
             return Double.NaN;
         }
-
-        SoftReference<BufferedInputStream> inRef = srtmMap.get(file);
-        BufferedInputStream in = (inRef != null) ? inRef.get() : null;
-        if (in == null) {
-            int srtmbuffer = 4 * 1024 * 1024;
-            in = new BufferedInputStream(new FileInputStream(file), srtmbuffer);
-            srtmMap.put(file, new SoftReference<>(in));
-            in.mark(srtmbuffer);
-        }
-        in.reset();
-
-        long starti = ((1200 - colmin) * 2402) + rowmin * 2;
-        in.skip(starti);
-        short readShort = readShort(in);
-        return readShort;
     }
 
-    private static void copyInputStream(InputStream in, BufferedOutputStream out) throws IOException {
-        byte[] buffer = new byte[1024 * 1024];
-        int len = in.read(buffer);
-        while (len >= 0) {
-            out.write(buffer, 0, len);
-            len = in.read(buffer);
-        }
-        in.close();
-        out.close();
-    }
+    private double getInterpolatedElevation(GridCoverage2D coverage, DirectPosition location) throws InvalidGridGeometryException, TransformException {
+        GridGeometry2D calculator = coverage.getGridGeometry();
 
-    /**
-     * checks a given URL for availbility
-     * @param urlN given URL
-     * @return true if URL exists otherwise false
-     */
-    private static boolean urlExist(URL urlN) {
-        try {
-            HttpURLConnection.setFollowRedirects(false);
-            HttpURLConnection con = (HttpURLConnection) urlN.openConnection();
-            con.setRequestMethod("HEAD");
-            return (con.getResponseCode() == HttpURLConnection.HTTP_OK);
-        } catch (Exception e) {
-            log.log(Level.SEVERE, "Invalid server URL found: {0}", urlN);
-            return false;
+        // Determine nearest grid cell
+        GridCoordinates2D nearestGridCell = calculator.worldToGrid(location);
+        DirectPosition nearestLocation = calculator.gridToWorld(nearestGridCell);
+        /*
+         * Get the "interpolation partners". Interpolating needs four sample
+         * values and two values depicting the "inbetweenness" of the sample
+         * asked for. The four values have their "footpoint" in the left upper
+         * edge, so they are called ul, ur, dl, dr (up/down, left/right). At
+         * first we get the grid coordinates.
+         */
+        float ul, ur, dl, dr, xfrac, yfrac;
+        {
+            GridCoordinates2D ulGCoord, urGCoord, dlGCoord, drGCoord;
+            double[] locationArray = location.getCoordinate();
+            double[] nearestLocationArray = nearestLocation.getCoordinate();
+            // Sample lies southeast of the nearest grid cell
+            if (locationArray[1] < nearestLocationArray[1] && locationArray[0] >= nearestLocationArray[0]) {
+                ulGCoord = nearestGridCell;
+                urGCoord = new GridCoordinates2D(nearestGridCell.x + 1, nearestGridCell.y);
+                dlGCoord = new GridCoordinates2D(nearestGridCell.x, nearestGridCell.y + 1);
+                drGCoord = new GridCoordinates2D(nearestGridCell.x + 1, nearestGridCell.y + 1);
+            } // Sample lies southwest of the nearest grid cell
+            else if (locationArray[1] < nearestLocationArray[1] && locationArray[0] < nearestLocationArray[0]) {
+                ulGCoord = new GridCoordinates2D(nearestGridCell.x - 1, nearestGridCell.y);
+                urGCoord = nearestGridCell;
+                dlGCoord = new GridCoordinates2D(nearestGridCell.x - 1, nearestGridCell.y + 1);
+                drGCoord = new GridCoordinates2D(nearestGridCell.x, nearestGridCell.y + 1);
+            } // Sample lies northeast of the nearest grid cell
+            else if (locationArray[1] >= nearestLocationArray[1] && locationArray[0] >= nearestLocationArray[0]) {
+                ulGCoord = new GridCoordinates2D(nearestGridCell.x, nearestGridCell.y - 1);
+                urGCoord = new GridCoordinates2D(nearestGridCell.x + 1, nearestGridCell.y - 1);
+                dlGCoord = nearestGridCell;
+                drGCoord = new GridCoordinates2D(nearestGridCell.x + 1, nearestGridCell.y);
+            } // Sample lies northwest of the nearest grid cell
+            // this "else" means: else if (locationArray[1] >= nearestLocationArray[1] && locationArray[0] < nearestLocationArray[0]) {
+            else {
+                ulGCoord = new GridCoordinates2D(nearestGridCell.x - 1, nearestGridCell.y - 1);
+                urGCoord = new GridCoordinates2D(nearestGridCell.x, nearestGridCell.y - 1);
+                dlGCoord = new GridCoordinates2D(nearestGridCell.x - 1, nearestGridCell.y);
+                drGCoord = nearestGridCell;
+            }
+
+            /*
+             * We have the grid coordinates. To get the xfrac and yfrac
+             * (relative "inbetweenness", see Javadoc of Interpolation) for
+             * interpolating, we also need the world coordinates.
+             */
+            DirectPosition ulWCoord = calculator.gridToWorld(ulGCoord);
+            DirectPosition dlWCoord = calculator.gridToWorld(dlGCoord);
+            DirectPosition urWCoord = calculator.gridToWorld(urGCoord);
+            // DirectPosition drWCoord = calculator.gridToWorld(drGCoord); // Just for debugging
+            xfrac = (float) ((locationArray[0] - ulWCoord.getCoordinate()[0]) / (urWCoord.getCoordinate()[0] - ulWCoord.getCoordinate()[0]));
+            yfrac = (float) ((ulWCoord.getCoordinate()[1] - locationArray[1]) / (ulWCoord.getCoordinate()[1] - dlWCoord.getCoordinate()[1]));
+
+            /*
+             * We have the cells, we have xfrac and yfrac. Now we only need the
+             * sample values.
+             */
+            ul = coverage.evaluate(ulGCoord, (int[]) null)[0];
+            ur = coverage.evaluate(urGCoord, (int[]) null)[0];
+            dl = coverage.evaluate(dlGCoord, (int[]) null)[0];
+            dr = coverage.evaluate(drGCoord, (int[]) null)[0];
+            
+            /*
+             * Stooooop! There are "special DN values": -9999 for void pixels, and 0 for sea water body (cited from ASTER Global DEM (ASTER GDEM) Quick Guide for V2). 0 is no problem, but we have to prevent -9999 being taken into account: Then we return NaN.
+             */
+            if (ul == -9999 || ur == -9999 || dl == -9999 || dr == -9999) {
+                this.log.log(Level.INFO, "Void pixel found while looking for ({0}, {1}), returning NaN", new Object[]{locationArray[0], locationArray[1]});
+                return Double.NaN;
+            }
+
+            /*
+             * And now we forget everything but ul, ur, dl, dr, xfrac, yfrac.
+             */
+        }
+        // Interpolate
+        return this.interpolation.interpolate(ul, ur, dl, dr, xfrac, yfrac);
+    }
+   
+    private class AsterTile {
+        public int north;
+        public int east;
+        
+        public AsterTile(int north, int east) {
+            this.north = north;
+            this.east = east;
         }
     }
 }

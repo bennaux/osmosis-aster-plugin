@@ -12,7 +12,7 @@ public class SrtmPlugin_loader implements PluginLoader {
         Map<String, TaskManagerFactory> factoryMap = new HashMap<>();
         SrtmPlugin_factory srtmplugin = new SrtmPlugin_factory();
 
-        factoryMap.put("write-srtm", srtmplugin);
+        factoryMap.put("write-aster", srtmplugin);
 
         return factoryMap;
     }
