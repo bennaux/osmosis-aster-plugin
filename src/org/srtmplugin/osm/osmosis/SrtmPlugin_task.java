@@ -250,7 +250,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         numberFormat.setMinimumIntegerDigits(3);
         filename_lowerLongitude = numberFormat.format(lowerLongitude);
         
-        filename = "ASTGTM2_" + filename_northSouth + filename_lowerLatitude + filename_westEast + filename_lowerLongitude + ".tif";
+        filename = "ASTGTM2_" + filename_northSouth + filename_lowerLatitude + filename_westEast + filename_lowerLongitude + "_dem.tif";
         this.log.log(Level.FINER, "Generated filename: " + filename);
         return filename;
     }
