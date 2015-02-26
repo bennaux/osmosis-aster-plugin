@@ -5,11 +5,13 @@
     <artifactId>aster-osmosis-plugin</artifactId>
     <version>1.0-SNAPSHOT${jarWarning}</version>
     <packaging>jar</packaging>
+    <name>OSMOSIS ASTER plugin</name>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
         <osmosisScope>provided</osmosisScope> <!-- configure this by using the profiles, this is fallback only. -->
+        <geotools.version>12-RC1</geotools.version>
     </properties>
     <!-- We define two different profiles: 
         debugWithNetbeans includes all the OSMOSIS jars into the plugin, 
@@ -33,6 +35,13 @@
             </properties>
         </profile>
     </profiles>
+    <repositories>
+        <repository>
+            <id>osgeo</id>
+            <name>Open Source Geospatial Foundation Repository</name>
+            <url>http://download.osgeo.org/webdav/geotools/</url>
+        </repository>       
+    </repositories>
     <build>
         <plugins>
             <plugin>
@@ -63,10 +72,20 @@
             <scope>${osmosisScope}</scope>
         </dependency>
         <dependency>
-	<groupId>org.openstreetmap.osmosis</groupId>
-	<artifactId>osmosis-xml</artifactId>
-	<version>0.43.1</version>
-        <scope>${osmosisScope}</scope>
-</dependency>
+            <groupId>org.openstreetmap.osmosis</groupId>
+            <artifactId>osmosis-xml</artifactId>
+            <version>0.43.1</version>
+            <scope>${osmosisScope}</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.geotools</groupId>
+            <artifactId>gt-geotiff</artifactId>
+            <version>${geotools.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.geotools</groupId>
+            <artifactId>gt-epsg-hsql</artifactId>
+            <version>${geotools.version}</version>                 
+        </dependency>
     </dependencies>
 </project>
