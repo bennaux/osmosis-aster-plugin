@@ -44,6 +44,10 @@ import org.geotools.geometry.DirectPosition2D;
 import org.geotools.geometry.Envelope2D;
 import org.opengis.geometry.DirectPosition;
 import org.opengis.referencing.operation.TransformException;
+import com.sun.media.imageioimpl.plugins.tiff.TIFFImageReaderSpi;
+import javax.media.jai.JAI;
+import javax.media.jai.OperationRegistry;
+import javax.media.jai.RegistryMode;
 
 /**
  * main class which implements all necessary methods for
@@ -83,6 +87,8 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         this.tagName = tagName;
         
         this.interpolation = new InterpolationBilinear();
+        
+        
     }
 
     @Override
@@ -201,11 +207,27 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
                 coverage = (GridCoverage2D) geotiffreader.read(null);
             }
             catch (IOException | IllegalArgumentException e) {
+                // TODO BENNO REMOVE THIS START
+        OperationRegistry or = JAI.getDefaultInstance().getOperationRegistry();
+        String[] modeNames = RegistryMode.getModeNames();
+        String[] descriptorNames;
+
+        for (int i = 0; i < modeNames.length; i++) {
+            System.out.println("For registry mode: " + modeNames[i]);
+
+            descriptorNames = or.getDescriptorNames(modeNames[i]);
+            for (int j = 0; j < descriptorNames.length; j++) {
+                System.out.print("\tRegistered Operator: ");
+                System.out.println(descriptorNames[j]);
+            }
+        }
+        // TODO BENNO REMOVE THIS END
                 // File not found!
                 this.addMissingTile((int)Math.floor(lat), (int)Math.floor(lon), filename);
                 this.log.fine("Added tile " + filename + " to missing tiles.");
                 this.log.severe("Missing file: " + filename);
                 System.out.println("Missing file: " + filename); // TODO Benno wech
+                e.printStackTrace();
                 return Double.NaN;
             }
             this.asterMap.put(filename, new SoftReference<>(coverage));
