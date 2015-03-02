@@ -3,40 +3,17 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>net.bennokue.java</groupId>
     <artifactId>aster-osmosis-plugin</artifactId>
-    <version>1.0-SNAPSHOT${jarWarning}</version>
+    <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>OSMOSIS ASTER plugin</name>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
-        <osmosisScope>provided</osmosisScope> <!-- configure this by using the profiles, this is fallback only. -->
+        <osmosisScope>provided</osmosisScope>
         <geotools.version>12-RC1</geotools.version>
         <externalLibsDirectory>lib</externalLibsDirectory>
     </properties>
-    <!-- We define two different profiles: 
-        debugWithNetbeans includes all the OSMOSIS jars into the plugin, 
-            so that we can test-run the plugin with Netbeans (or anything else). 
-            Note: This does not work yet...
-        pluginProductions doesn't include the OSMOSIS sources, because later on 
-            the plugin will be called BY osmosis and will not need the jars anymore. 
-    DO NOT FORGET to set this correctly :-) -->
-    <profiles>
-        <profile>
-            <id>debugWithNetbeans</id>
-            <properties>
-                <osmosisScope>compile</osmosisScope>
-                <jarWarning>-DEBUG-BUILD</jarWarning>
-            </properties>
-        </profile>
-        <profile>
-            <id>pluginProduction</id>
-            <properties>
-                <osmosisScope>provided</osmosisScope>
-                <jarWarning></jarWarning>
-            </properties>
-        </profile>
-    </profiles>
     <repositories>
         <repository>
             <id>osgeo</id>
@@ -68,36 +45,6 @@
             <version>${geotools.version}</version>                 
         </dependency>
     </dependencies>
-    <!--<build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>1.3.1</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <manifestEntries>
-                                        <Main-Class>net.bennokue.java.geotifftest.GTqs</Main-Class>
-                                        <Implementation-Vendor>Blapfi</Implementation-Vendor>
-                                        <Implementation-Vendor-Id>huiuiui</Implementation-Vendor-Id>
-                                        <Implementation-Version>bapfi</Implementation-Version>
-                                    </manifestEntries>
-                                </transformer>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                            </transformers>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>-->
     <build>
         <plugins>
             <plugin>
@@ -159,7 +106,7 @@
                         </replacement>
                     </replacements>
                 </configuration>
-            </plugin>   
+            </plugin>
         </plugins>
     </build>
 </project>
