@@ -10,10 +10,15 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
+        <!-- Switch here if you ever want OSMOSIS to be included. -->
         <osmosisScope>provided</osmosisScope>
+        <!-- Specify the version of geotools that will be fetched by Maven. -->
         <geotools.version>12-RC1</geotools.version>
+        <!-- The external dependencies will be placed in a directory at the final 
+        zip file. Specify the directory name here (tip: lib). -->
         <externalLibsDirectory>lib</externalLibsDirectory>
     </properties>
+    <!-- The only non-standard repository is the GEOTOOLS repo. -->
     <repositories>
         <repository>
             <id>osgeo</id>
@@ -39,6 +44,7 @@
             <artifactId>gt-geotiff</artifactId>
             <version>${geotools.version}</version>
         </dependency>
+        <!-- Do not remove gt-epsg-hsql dependency. -->
         <dependency>
             <groupId>org.geotools</groupId>
             <artifactId>gt-epsg-hsql</artifactId>
@@ -46,8 +52,12 @@
         </dependency>
     </dependencies>
     <build>
+        <!-- Build process: Compile to a slim .jar, copy the dependencies to a folder 
+        ${externalLibsDirectory}, copy README.txt to target and replace variables in it, 
+        bundle those three into a ZIP file. -->
         <plugins>
             <plugin>
+                <!-- Copy dependencies to ${externalLibsDirectory}. -->
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
@@ -63,24 +73,8 @@
                 </executions>
             </plugin>
             <plugin>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.5.3</version>
-                <configuration>
-                    <descriptors>
-                        <descriptor>src/main/assembly/maven-zip.xml</descriptor>
-                    </descriptors>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>make-assembly</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
+                <!-- Copy the README.txt file to the target directory and replace
+                some variables in it. -->
                 <groupId>com.google.code.maven-replacer-plugin</groupId>
                 <artifactId>replacer</artifactId>
                 <version>1.5.3</version>
@@ -107,6 +101,28 @@
                     </replacements>
                 </configuration>
             </plugin>
+            <plugin>
+                <!-- Bundle the jar, the folder and the processed README.txt into
+                a zip file. -->
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>2.5.3</version>
+                <configuration>
+                    <descriptors>
+                        <!-- Our configuration will be included from this file. -->
+                        <descriptor>src/main/assembly/maven-zip.xml</descriptor>
+                    </descriptors>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+    <!-- That's it. -->
 </project>

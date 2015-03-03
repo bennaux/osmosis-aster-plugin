@@ -61,7 +61,7 @@ import javax.media.jai.RegistryMode;
 public class SrtmPlugin_task implements SinkSource, EntityProcessor {
 
     private static final Logger log = Logger.getLogger(SrtmPlugin_task.class.getName());
-    private String tagName = "height";
+    private String tagName = "ele";
     private Sink sink;
     private File asterDir = new File("./");
     private boolean replaceExistingTags = true;
@@ -166,6 +166,8 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
 
     @Override
     public void complete() {
+        // TODO Benno Give the user a list of missing tiles
+        // TODO Benno Give the user a shapefile of missing tiles, if (s)he wants *DEFERRED
         sink.complete();
     }
 
@@ -185,6 +187,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
     }
     
     private double asterHeight(double lat, double lon) {
+        // TODO Benno Unzip the DEM from ZIP if needed *DEFERRED
         String filename = generateFileName(lat, lon);
         if (this.missingAsterTiles.containsKey(filename)) {
             log.fine("ASTER tile " + filename + " already marked as missing. Returning NaN.");
