@@ -407,7 +407,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
              * and 0 for sea water body (cited from ASTER Global DEM (ASTER GDEM) Quick Guide for V2). 0 is no problem, but we have to prevent -9999 being taken into account: Then we return NaN.
              */
             if (ul == -9999 || ur == -9999 || dl == -9999 || dr == -9999) {
-                this.log.log(Level.INFO, "Void pixel found while looking for ({0}, {1}), returning NaN", new Object[]{locationArray[0], locationArray[1]});
+                log.log(Level.INFO, "Void pixel found while looking for ({0}, {1}), returning NaN", new Object[]{locationArray[0], locationArray[1]});
                 return Double.NaN;
             }
 
@@ -426,7 +426,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
     private String generateListOfMissingTiles() {
         StringBuilder builder = new StringBuilder();
         builder.append("\n** ASTER plugin run completed. ");
-        if (this.missingAsterTiles.size() == 0) {
+        if (this.missingAsterTiles.isEmpty()) {
             builder.append("There are NO missing tiles.");
         }
         else {
