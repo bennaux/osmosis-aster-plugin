@@ -6,6 +6,7 @@ import java.lang.ref.SoftReference;
 import java.text.NumberFormat;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
@@ -175,7 +176,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
 
     @Override
     public void complete() {
-        // TODO Benno Give the user a list of missing tiles
+        System.out.println(this.generateListOfMissingTiles());
         // TODO Benno Give the user a shapefile of missing tiles, if (s)he wants *DEFERRED
         sink.complete();
     }
@@ -269,16 +270,8 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         String filename;
         String filename_northSouth, filename_westEast, filename_lowerLatitude, filename_lowerLongitude;
         
-        if (lat > 0) {
-            filename_northSouth = "N";
-        } else {
-            filename_northSouth = "S";
-        }
-        if (lon > 0) {
-            filename_westEast = "E";
-        } else {
-            filename_westEast = "W";
-        }
+        filename_northSouth = generateNorthSouth(lat);
+        filename_westEast = generateWestEast(lon);
         
         NumberFormat numberFormat = NumberFormat.getInstance();
         numberFormat.setMinimumIntegerDigits(2);
@@ -289,6 +282,32 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         filename = "ASTGTM2_" + filename_northSouth + filename_lowerLatitude + filename_westEast + filename_lowerLongitude + "_dem.tif";
         log.log(Level.FINER, "Generated filename: {0}", filename);
         return filename;
+    }
+    
+    /**
+     * Gives back if a given latitude is on the northern or in the southern hemisphere or on the southern hemisphere.
+     * @param latitude The latitude.
+     * @return {@code N} if the given latitude is in the northern hemisphere, {@code S} otherwise.
+     */
+    private static String generateNorthSouth(double latitude) {
+        if (latitude > 0) {
+            return "N";
+        } else {
+            return "S";
+        }
+    }
+    
+    /**
+     * Gives back if the given longitude is western or eastern of the Prime meridian (Greenwich).
+     * @param longitude The longitude.
+     * @return {@code E} if the given longitude lies eastern to (of? from??) the Prime meridian, {@code W} otherwise.
+     */
+    private static String generateWestEast(double longitude) {
+        if (longitude > 0) {
+            return "E";
+        } else {
+            return "W";
+        }
     }
     
     /**
@@ -398,6 +417,58 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         }
         // Interpolate
         return this.interpolation.interpolate(ul, ur, dl, dr, xfrac, yfrac);
+    }
+    
+    /**
+     * Generates a list (not what YOU think! A human readable list) of all the missing ASTER tiles, so that the user knows what (s)he has to download.
+     * @return A human readable list of all the missing tiles, together with a MUR for users who don't have time to do it tile by tile.
+     */
+    private String generateListOfMissingTiles() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("\n** ASTER plugin run completed. ");
+        if (this.missingAsterTiles.size() == 0) {
+            builder.append("There are NO missing tiles.");
+        }
+        else {
+            builder.append("There are ").append(this.missingAsterTiles.size()).append(" missing tiles: \n");
+            Iterator<String> it = this.missingAsterTiles.keySet().iterator();
+            int minNorth = 361, maxNorth = 0, minEast = 361, maxEast = 0;
+            while (it.hasNext()) {
+                String filename = it.next();
+                AsterTile asterTile = this.missingAsterTiles.get(filename);
+                
+                builder.append("\t").
+                        append(filename).
+                        append("\t ").
+                        append(asterTile.north).
+                        append(generateNorthSouth(asterTile.north)).
+                        append(", ").
+                        append(asterTile.east).
+                        append(generateWestEast(asterTile.east)).
+                        append("\n");
+                minNorth = Math.min(minNorth, asterTile.north);
+                maxNorth = Math.max(maxNorth, asterTile.north);
+                minEast = Math.min(minEast, asterTile.east);
+                maxEast = Math.max(maxEast, asterTile.east);
+            }
+            builder.append("If you want it simple, just download all ASTER data from ").
+                    append(maxNorth+1).
+                    append(generateNorthSouth(maxNorth+1)).
+                    append("/").
+                    append(minEast).
+                    append(generateWestEast(minEast)).
+                    append(" to ").
+                    append(minNorth).
+                    append(generateNorthSouth(minNorth)).
+                    append("/").
+                    append(maxEast+1).
+                    append(generateWestEast(maxEast+1)).
+                    append(".\n").
+                    append("It would include ").
+                    append((maxNorth+1-minNorth) * (maxEast + 1-minEast) - this.missingAsterTiles.size()).
+                    append(" unnecessary tiles.\n\n");
+        }
+        return builder.toString();
     }
     
     /**
