@@ -20,7 +20,7 @@ Plugin Version: #PLUGIN_VERSION#
     stored in a folder, called "ASTER folder" from now on.
 
     The cli call is built like this:
-    osmosis <pre-tasks> --write-aster asterDir=... repExisting={true|false} tagName=... logLevel=... <post-tasks>
+    osmosis <pre-tasks> --write-aster asterDir=... repExisting={true|false} tagName=... <post-tasks>
 
     asterDir:   Specify the folder where the ASTER tiff files reside on your system.
                 Defaults to the local folder.
@@ -46,8 +46,8 @@ Plugin Version: #PLUGIN_VERSION#
     Log levels can be: ALL, FINEST, FINER, FINE, CONFIG, INFO, WARNING, SEVERE, OFF.
 
 4) Version history
-    1.0 (2015-03-??) TODO Benno aktualisiere Datum
-        Version 1.0 is based on "osmosis-srtm-plugin", Version 1.1.0 by Franz 
+    1.0.0 (2015-03-04)
+        Version 1.0.0 is based on "osmosis-srtm-plugin", Version 1.1.0 by Franz 
         Graf https://code.google.com/p/osmosis-srtm-plugin/
         The SRTM features where removed, ASTER features added, and the whole 
         project had been switched to Maven.

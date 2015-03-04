@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>net.bennokue.java</groupId>
     <artifactId>aster-osmosis-plugin</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0</version><!-- Do not forget to change this in plugin.xml as well -->
     <packaging>jar</packaging>
     <name>OSMOSIS ASTER plugin</name>
     <properties>
