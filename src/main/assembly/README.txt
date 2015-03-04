@@ -20,7 +20,7 @@ Plugin Version: #PLUGIN_VERSION#
     stored in a folder, called "ASTER folder" from now on.
 
     The cli call is built like this:
-    osmosis <pre-tasks> --write-aster asterDir=... repExisting={true|false} tagName=... <post-tasks>
+    osmosis <pre-tasks> --write-aster asterDir=... repExisting={true|false} tagName=... logLevel=... <post-tasks>
 
     asterDir:   Specify the folder where the ASTER tiff files reside on your system.
                 Defaults to the local folder.
@@ -31,6 +31,11 @@ Plugin Version: #PLUGIN_VERSION#
 
     tagName:    The tag name where the elevation will be stored.
                 Defaults to "elevation".
+
+    logLevel:   You can specify the plugin's log level via providing a java Logger
+                level (ALL, FINEST, FINER, FINE, CONFIG, INFO, WARNING, SEVERE, OFF).
+                It defaults to null, so that if you do not use it, OSMOSIS' settings
+                will be used.
 
 3) Version history
     1.0 (2015-03-??) TODO Benno aktualisiere Datum
