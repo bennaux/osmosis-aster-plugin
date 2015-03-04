@@ -70,6 +70,11 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
     private Map<String, AsterTile> missingAsterTiles = new HashMap<>();
     
     private Interpolation interpolation;
+    /**
+     * Specified log level, if the user doesnt want it to be inherited 
+     * (then it's null).
+     */
+    private Level logLevel;
 
     /**
      * Constructor <br>
@@ -87,8 +92,19 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         this.tagName = tagName;
         
         this.interpolation = new InterpolationBilinear();
-        
-        
+    }
+    
+    /**
+     * Constructor with specified task log level.
+     * 
+     * @param asterDir Directory where the ASTER dem files reside.
+     * @param replaceExistingTags Replace existing elevation tags? {@code true}: Yes! {@code false}: Noo! 
+     * @param tagName Define the string of the attribute the elevation will be stored within. Defaults to {@code ele}.
+     * @param logLevel Define the level the task logger should be set to.
+     */
+    public SrtmPlugin_task(final File asterDir, final boolean replaceExistingTags, String tagName, Level logLevel) {
+        this(asterDir, replaceExistingTags, tagName);
+        this.logLevel = logLevel;
     }
 
     @Override
@@ -103,6 +119,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
 
     @Override
     public void process(NodeContainer container) {
+        log.setLevel(this.logLevel);
         //backup existing node entity
         Node node = container.getEntity();
         //backup lat and lon of node entity
@@ -205,6 +222,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         if (coverage == null) {
             File asterFile = new File(this.asterDir, filename);
             try {
+                log.log(Level.FINE, "Trying to load ASTER file {0}", filename);
                 System.out.println("Trying to load ASTER file " + filename); // TODO Benno wech
                 GeoTiffReader geotiffreader = new GeoTiffReader(asterFile);
                 coverage = (GridCoverage2D) geotiffreader.read(null);
