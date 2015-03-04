@@ -32,20 +32,28 @@ Plugin Version: #PLUGIN_VERSION#
     tagName:    The tag name where the elevation will be stored.
                 Defaults to "elevation".
 
-    logLevel:   You can specify the plugin's log level via providing a java Logger
-                level (ALL, FINEST, FINER, FINE, CONFIG, INFO, WARNING, SEVERE, OFF).
-                It defaults to null, so that if you do not use it, OSMOSIS' settings
-                will be used.
+3) Logging
+    You can enable logging by adding the path to a logging.properties file of your
+    choice to the osmosis(.bat), for example:
+        -Djava.util.logging.config.file=my-logging.properties
+    Put the command right into the EXEC command building line, eg. after 
+        -Dclassworlds.conf="%MYAPP_HOME%\config\plexus.conf"
+    Such a properties file could look like this:
+        .handlers= java.util.logging.ConsoleHandler
+        .level= ALL
+        java.util.logging.ConsoleHandler.level = ALL
+        org.srtmplugin.osm.osmosis.SrtmPlugin_task.level = ALL
+    Log levels can be: ALL, FINEST, FINER, FINE, CONFIG, INFO, WARNING, SEVERE, OFF.
 
-3) Version history
+4) Version history
     1.0 (2015-03-??) TODO Benno aktualisiere Datum
         Version 1.0 is based on "osmosis-srtm-plugin", Version 1.1.0 by Franz 
         Graf https://code.google.com/p/osmosis-srtm-plugin/
         The SRTM features where removed, ASTER features added, and the whole 
         project had been switched to Maven.
 
-4) Issues
+5) Issues
     None yet. =)
 
-5) Contact
+6) Contact
     kuehnl@cip.ifi.lmu.de

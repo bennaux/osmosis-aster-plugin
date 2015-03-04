@@ -1,26 +1,15 @@
 package org.srtmplugin.osm.osmosis;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.ref.SoftReference;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.text.NumberFormat;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.zip.ZipFile;
 import org.openstreetmap.osmosis.core.container.v0_6.BoundContainer;
 import org.openstreetmap.osmosis.core.container.v0_6.EntityContainer;
 import org.openstreetmap.osmosis.core.container.v0_6.EntityProcessor;
@@ -36,52 +25,67 @@ import javax.media.jai.Interpolation;
 import javax.media.jai.InterpolationBilinear;
 import org.geotools.coverage.grid.GridCoordinates2D;
 import org.geotools.coverage.grid.GridCoverage2D;
-import org.opengis.coverage.grid.GridEnvelope;
 import org.geotools.coverage.grid.GridGeometry2D;
 import org.geotools.coverage.grid.InvalidGridGeometryException;
 import org.geotools.gce.geotiff.GeoTiffReader;
 import org.geotools.geometry.DirectPosition2D;
-import org.geotools.geometry.Envelope2D;
 import org.opengis.geometry.DirectPosition;
 import org.opengis.referencing.operation.TransformException;
-import com.sun.media.imageioimpl.plugins.tiff.TIFFImageReaderSpi;
-import javax.media.jai.JAI;
-import javax.media.jai.OperationRegistry;
-import javax.media.jai.RegistryMode;
 
 /**
- * main class which implements all necessary methods for
- * srtm downloading, parsing and adding
+ * Main class which implements all necessary methods for loading ASTER tiles and 
+ * interpolating elevations for given nodes.
  * 
  * @author Dominik Paluch
  * @modified Robert Greil
  * @modified Benno Kühnl
- * TODO Benno javadoc
  */
 public class SrtmPlugin_task implements SinkSource, EntityProcessor {
-
+    /**
+     * Our logger. 
+     */
     private static final Logger log = Logger.getLogger(SrtmPlugin_task.class.getName());
+    /**
+     * The level of our logger.
+     */
+    private final Level logLevel = log.getLevel();
+    /**
+     * Our ConsoleHandler for logging. See {@link #refreshLogger()}.
+     */
+    private final ConsoleHandler logHandler = new ConsoleHandler();
+    /** 
+     * The tag name for storing the elevation at the OSM file. Default: ele.
+     */
     private String tagName = "ele";
     private Sink sink;
-    private File asterDir = new File("./");
-    private boolean replaceExistingTags = true;
-    private Map<File, SoftReference<BufferedInputStream>> srtmMap = new HashMap<>(); // TODO Benno Wech
-    private Map<String, SoftReference<GridCoverage2D>> asterMap = new HashMap<>();
-    private Map<String, AsterTile> missingAsterTiles = new HashMap<>();
-    
-    private Interpolation interpolation;
     /**
-     * Specified log level, if the user doesnt want it to be inherited 
-     * (then it's null).
+     * The directory where the ASTER dem files reside.
      */
-    private Level logLevel;
+    private File asterDir = new File("./");
+    /**
+     * If there is already a tag with {@link #tagName} at our node, shall we overwrite it. Defaul: true.
+     */
+    private boolean replaceExistingTags = true;
+    /**
+     * Stores SoftReferences to the GridCoverages of already loaded ASTER tiles.
+     */
+    private final Map<String, SoftReference<GridCoverage2D>> asterMap = new HashMap<>();
+    /**
+     * Stores information about missing ASTER tiles. You should inform the user 
+     * after the completion about which tiles (s)he has to download.
+     */
+    private final Map<String, AsterTile> missingAsterTiles = new HashMap<>();
+    /**
+     * Interpolate inbetween the data points in the ASTER coverage.
+     */
+    private Interpolation interpolation;
 
     /**
-     * Constructor <br>
+     * Constructor.
      * 
-     * @param asterDir local directory for downloading of srtm files
-     * @param replaceExistingTags replace existing height tags? true/false
-     * 
+     * @param asterDir Directory where the ASTER dem files reside.
+     * @param replaceExistingTags Replace existing elevation tags? {@code true}: Yes! {@code false}: Noo! 
+     * @param tagName Define the string of the attribute the elevation will be stored within. Defaults to {@code ele}.
      */
     public SrtmPlugin_task(final File asterDir, final boolean replaceExistingTags, String tagName) {
         if (!asterDir.exists() || !asterDir.isDirectory()) {
@@ -90,21 +94,8 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         this.asterDir = asterDir;
         this.replaceExistingTags = replaceExistingTags;
         this.tagName = tagName;
-        
         this.interpolation = new InterpolationBilinear();
-    }
-    
-    /**
-     * Constructor with specified task log level.
-     * 
-     * @param asterDir Directory where the ASTER dem files reside.
-     * @param replaceExistingTags Replace existing elevation tags? {@code true}: Yes! {@code false}: Noo! 
-     * @param tagName Define the string of the attribute the elevation will be stored within. Defaults to {@code ele}.
-     * @param logLevel Define the level the task logger should be set to.
-     */
-    public SrtmPlugin_task(final File asterDir, final boolean replaceExistingTags, String tagName, Level logLevel) {
-        this(asterDir, replaceExistingTags, tagName);
-        this.logLevel = logLevel;
+        this.refreshLogger();
     }
 
     @Override
@@ -119,13 +110,14 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
 
     @Override
     public void process(NodeContainer container) {
-        log.setLevel(this.logLevel);
+        this.refreshLogger();
         //backup existing node entity
         Node node = container.getEntity();
         //backup lat and lon of node entity
         double lat = node.getLatitude();
         double lon = node.getLongitude();
-        //try to get aster height
+        // Try to get aster height
+        log.log(Level.FINER, "Calculating elevation for {0}/{1}", new Object[]{lat, lon});
         Double asterHeight = new Double(asterHeight(lat, lon));
 
         //look for existing height tag
@@ -206,8 +198,9 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
     private double asterHeight(double lat, double lon) {
         // TODO Benno Unzip the DEM from ZIP if needed *DEFERRED
         String filename = generateFileName(lat, lon);
+        // If the file could not be found earlier, wo do not try it again
         if (this.missingAsterTiles.containsKey(filename)) {
-            log.fine("ASTER tile " + filename + " already marked as missing. Returning NaN.");
+            log.log(Level.FINER, "ASTER tile {0} already marked as missing. Returning NaN.", filename);
             return Double.NaN;
         }
         
@@ -223,32 +216,15 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
             File asterFile = new File(this.asterDir, filename);
             try {
                 log.log(Level.FINE, "Trying to load ASTER file {0}", filename);
-                System.out.println("Trying to load ASTER file " + filename); // TODO Benno wech
                 GeoTiffReader geotiffreader = new GeoTiffReader(asterFile);
                 coverage = (GridCoverage2D) geotiffreader.read(null);
             }
             catch (IOException | IllegalArgumentException e) {
-                // TODO BENNO REMOVE THIS START
-        OperationRegistry or = JAI.getDefaultInstance().getOperationRegistry();
-        String[] modeNames = RegistryMode.getModeNames();
-        String[] descriptorNames;
-
-        for (int i = 0; i < modeNames.length; i++) {
-            System.out.println("For registry mode: " + modeNames[i]);
-
-            descriptorNames = or.getDescriptorNames(modeNames[i]);
-            for (int j = 0; j < descriptorNames.length; j++) {
-                System.out.print("\tRegistered Operator: ");
-                System.out.println(descriptorNames[j]);
-            }
-        }
-        // TODO BENNO REMOVE THIS END
-                // File not found!
+                // File not found, or internal GeoTools/JAI error!
                 this.addMissingTile((int)Math.floor(lat), (int)Math.floor(lon), filename);
-                this.log.fine("Added tile " + filename + " to missing tiles.");
-                this.log.severe("Missing file: " + filename);
-                System.out.println("Missing file: " + filename); // TODO Benno wech
-                e.printStackTrace();
+                log.log(Level.SEVERE, "Missing file: {0}", filename);
+                log.log(Level.FINE, "Added tile {0} to missing tiles.", filename);
+                log.log(Level.CONFIG, "Exception information:", e);
                 return Double.NaN;
             }
             this.asterMap.put(filename, new SoftReference<>(coverage));
@@ -256,16 +232,33 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         return this.getInterpolatedElevation(coverage, lon, lat);
     }
     
+    /**
+     * Adds a missing tile to {@link #missingAsterTiles}.
+     * @param lat The tiles lower leftern latitude.
+     * @param lon The tiles lower leftern longitude.
+     * @param filename The generated ASTER filename.
+     */
     private void addMissingTile(int lat, int lon, String filename) {
         if (!this.missingAsterTiles.containsKey(filename)) {
             this.missingAsterTiles.put(filename, new AsterTile(lat, lon));
         }
     }
     
+    /**
+     * Adds a missing tile to {@link #missingAsterTiles}.
+     * @param lat The tiles lower leftern latitude.
+     * @param lon The tiles lower leftern longitude.
+     */
     private void addMissingTile(int lat, int lon) {
         this.addMissingTile(lat, lon, generateFileName(lat, lon));
     }
     
+    /**
+     * Generate the filename where the elevation data for the given coordinates are in.
+     * @param lat The latitude of interest.
+     * @param lon The longitude of interest.
+     * @return A String containing the filename where the elevation of the provided coordinates are in.
+     */
     private String generateFileName(double lat, double lon) {
         /*
          * Determine filename
@@ -273,7 +266,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
          */
         int lowerLatitude = Math.abs((int) Math.floor(lat));
         int lowerLongitude = Math.abs((int) Math.floor(lon));
-        String filename = "";
+        String filename;
         String filename_northSouth, filename_westEast, filename_lowerLatitude, filename_lowerLongitude;
         
         if (lat > 0) {
@@ -294,10 +287,17 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         filename_lowerLongitude = numberFormat.format(lowerLongitude);
         
         filename = "ASTGTM2_" + filename_northSouth + filename_lowerLatitude + filename_westEast + filename_lowerLongitude + "_dem.tif";
-        this.log.log(Level.FINER, "Generated filename: " + filename);
+        log.log(Level.FINER, "Generated filename: {0}", filename);
         return filename;
     }
     
+    /**
+     * Interpolates the elevation of the given coordinates using the given ASTER coverage. The exceptions are caught and handled by logging them and returning NaN. As such, it just wraps {@link #getInterpolatedElevation(org.geotools.coverage.grid.GridCoverage2D, org.opengis.geometry.DirectPosition)} .
+     * @param coverage The ASTER coverage where the coordinates are in.
+     * @param x The longitude of the desired elevation point.
+     * @param y The latitude of the desired elevation point.
+     * @return The elevation of the point, or NaN if there are void pixels in its surrounding, or if there was an exception.
+     */
     private double getInterpolatedElevation(GridCoverage2D coverage, double x, double y) {
         DirectPosition location = new DirectPosition2D(x, y);
         try {
@@ -308,7 +308,16 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         }
     }
 
+    /**
+     * Interpolates the elevation of the given coordinates using the given ASTER coverage. The exceptions are NOT caught, so you might want to use {@link #getInterpolatedElevation(org.geotools.coverage.grid.GridCoverage2D, double, double)}.
+     * @param coverage The ASTER coverage where the coordinates are in.
+     * @param location The position of the desired elevation point.
+     * @return The elevation of the point, or NaN if there are void pixels in its surrounding.
+     * @throws InvalidGridGeometryException Thrown by GeoTools. 
+     * @throws TransformException Thrown by GeoTools. Ask there, if it happens.
+     */
     private double getInterpolatedElevation(GridCoverage2D coverage, DirectPosition location) throws InvalidGridGeometryException, TransformException {
+        // Convertor from and to grid cells.
         GridGeometry2D calculator = coverage.getGridGeometry();
 
         // Determine nearest grid cell
@@ -375,7 +384,8 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
             dr = coverage.evaluate(drGCoord, (int[]) null)[0];
             
             /*
-             * Stooooop! There are "special DN values": -9999 for void pixels, and 0 for sea water body (cited from ASTER Global DEM (ASTER GDEM) Quick Guide for V2). 0 is no problem, but we have to prevent -9999 being taken into account: Then we return NaN.
+             * Stooooop! There are "special DN values": -9999 for void pixels, 
+             * and 0 for sea water body (cited from ASTER Global DEM (ASTER GDEM) Quick Guide for V2). 0 is no problem, but we have to prevent -9999 being taken into account: Then we return NaN.
              */
             if (ul == -9999 || ur == -9999 || dl == -9999 || dr == -9999) {
                 this.log.log(Level.INFO, "Void pixel found while looking for ({0}, {1}), returning NaN", new Object[]{locationArray[0], locationArray[1]});
@@ -389,7 +399,28 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         // Interpolate
         return this.interpolation.interpolate(ul, ur, dl, dr, xfrac, yfrac);
     }
+    
+    /**
+     * Re-sets the levels and handlers of out logger. I (benno) really  don't 
+     * have any clue why the logger keeps loosing its handler and its level 
+     * from time to time, and this is a very inelegant and fast way to make it 
+     * remember them.
+     */
+    private void refreshLogger() {
+        if (this.logLevel != null) {
+            log.setLevel(this.logLevel);
+            this.logHandler.setLevel(this.logLevel);
+            if (log.getHandlers().length == 0) {
+                log.addHandler(this.logHandler);
+            }
+            log.setUseParentHandlers(false);
+        }
+    }
    
+    /**
+     * Stores the coordinates of an ASTER tile. Will be used for informing the 
+     * user about the missing ASTER tiles after finishing the OSMOSIS run.
+     */
     private class AsterTile {
         public int north;
         public int east;

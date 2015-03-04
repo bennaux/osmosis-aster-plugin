@@ -11,6 +11,7 @@ public class SrtmPlugin_loader implements PluginLoader {
         Map<String, TaskManagerFactory> factoryMap = new HashMap<>();
         SrtmPlugin_factory srtmplugin = new SrtmPlugin_factory();
 
+        // write-aster will be our task name
         factoryMap.put("write-aster", srtmplugin);
 
         return factoryMap;
