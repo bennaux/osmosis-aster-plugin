@@ -42,7 +42,7 @@ Plugin Version: #PLUGIN_VERSION#
         .handlers= java.util.logging.ConsoleHandler
         .level= ALL
         java.util.logging.ConsoleHandler.level = ALL
-        org.srtmplugin.osm.osmosis.SrtmPlugin_task.level = ALL
+        net.bennokue.java.osmosis.plugins.aster.AsterPlugin_task.level = ALL
     Log levels can be: ALL, FINEST, FINER, FINE, CONFIG, INFO, WARNING, SEVERE, OFF.
 
 4) Version history

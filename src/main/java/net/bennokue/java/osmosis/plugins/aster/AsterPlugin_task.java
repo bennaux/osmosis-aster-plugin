@@ -1,4 +1,4 @@
-package org.srtmplugin.osm.osmosis;
+package net.bennokue.java.osmosis.plugins.aster;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,12 +41,12 @@ import org.opengis.referencing.operation.TransformException;
  * @modified Robert Greil
  * @modified Benno Kühnl
  */
-public class SrtmPlugin_task implements SinkSource, EntityProcessor {
+public class AsterPlugin_task implements SinkSource, EntityProcessor {
 
     /**
      * Our logger.
      */
-    private static final Logger log = Logger.getLogger(SrtmPlugin_task.class.getName());
+    private static final Logger log = Logger.getLogger(AsterPlugin_task.class.getName());
     /**
      * The level of our logger.
      */
@@ -92,7 +92,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
      * @param tagName Define the string of the attribute the elevation will be
      * stored within. Defaults to {@code ele}.
      */
-    public SrtmPlugin_task(final File asterDir, final boolean replaceExistingTags, String tagName) {
+    public AsterPlugin_task(final File asterDir, final boolean replaceExistingTags, String tagName) {
         if (!asterDir.exists() || !asterDir.isDirectory()) {
             throw new IllegalArgumentException("Not a directory " + asterDir.getAbsolutePath());
         }
@@ -155,7 +155,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
             tags.add(new Tag(tagName, asterHeight.toString()));
         }
 
-        //create new node entity with new srtm height tag
+        //create new node entity with new aster height tag
         CommonEntityData ced = new CommonEntityData(
                 node.getId(),
                 node.getVersion(),
@@ -345,7 +345,7 @@ public class SrtmPlugin_task implements SinkSource, EntityProcessor {
         try {
             return this.getInterpolatedElevation(coverage, location);
         } catch (InvalidGridGeometryException | TransformException ex) {
-            Logger.getLogger(SrtmPlugin_task.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(AsterPlugin_task.class.getName()).log(Level.SEVERE, null, ex);
             return Double.NaN;
         }
     }
