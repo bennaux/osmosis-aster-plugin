@@ -6,6 +6,7 @@ import org.openstreetmap.osmosis.core.pipeline.common.TaskManagerFactory;
 import org.openstreetmap.osmosis.core.plugin.PluginLoader;
 
 public class SrtmPlugin_loader implements PluginLoader {
+
     @Override
     public Map<String, TaskManagerFactory> loadTaskFactories() {
         Map<String, TaskManagerFactory> factoryMap = new HashMap<>();
