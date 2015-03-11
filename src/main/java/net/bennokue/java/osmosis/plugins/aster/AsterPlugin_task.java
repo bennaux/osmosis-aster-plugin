@@ -75,9 +75,10 @@ public class AsterPlugin_task implements SinkSource, EntityProcessor {
     private final Map<String, SoftReference<GridCoverage2D>> asterMap = new HashMap<>();
     /**
      * Stores information about missing ASTER tiles. You should inform the user
-     * after the completion about which tiles (s)he has to download.
+     * after the completion about which tiles (s)he has to download. There's a
+     * constructor to provide this map and to get its information later on.
      */
-    private final Map<String, AsterTile> missingAsterTiles = new HashMap<>();
+    private Map<String, AsterTile> missingAsterTiles = new HashMap<>();
     /**
      * Interpolate inbetween the data points in the ASTER coverage.
      */
@@ -93,6 +94,9 @@ public class AsterPlugin_task implements SinkSource, EntityProcessor {
      * stored within. Defaults to {@code ele}.
      */
     public AsterPlugin_task(final File asterDir, final boolean replaceExistingTags, String tagName) {
+        if (null == asterDir) {
+            throw new IllegalArgumentException("No ASTER directory given!");
+        }
         if (!asterDir.exists() || !asterDir.isDirectory()) {
             throw new IllegalArgumentException("Not a directory " + asterDir.getAbsolutePath());
         }
@@ -101,6 +105,25 @@ public class AsterPlugin_task implements SinkSource, EntityProcessor {
         this.tagName = tagName;
         this.interpolation = new InterpolationBilinear();
         this.refreshLogger();
+    }
+
+    /**
+     * Constructor with provided HashMap for storing information about missing
+     * tiles.
+     *
+     * @param asterDir Directory where the ASTER dem files reside.
+     * @param replaceExistingTags Replace existing elevation tags? {@code true}:
+     * Yes! {@code false}: Noo!
+     * @param tagName Define the string of the attribute the elevation will be
+     * stored within. Defaults to {@code ele}.
+     * @param missingTilesMap A Map where to store information about missing
+     * tiles. Useful when there is no sysout to inform the user. Will be cleared
+     * before use.
+     */
+    public AsterPlugin_task(final File asterDir, final boolean replaceExistingTags, String tagName, Map<String, AsterTile> missingTilesMap) {
+        this(asterDir, replaceExistingTags, tagName);
+        this.missingAsterTiles = missingTilesMap;
+        this.missingAsterTiles.clear();
     }
 
     @Override
@@ -452,21 +475,23 @@ public class AsterPlugin_task implements SinkSource, EntityProcessor {
      * Generates a list (not what YOU think! A human readable list) of all the
      * missing ASTER tiles, so that the user knows what (s)he has to download.
      *
+     * @param missingTilesMap The Map of the missing tiles: Key=filename,
+     * Value=Tile.
      * @return A human readable list of all the missing tiles, together with a
      * MUR for users who don't have time to do it tile by tile.
      */
-    private String generateListOfMissingTiles() {
+    public static String generateListOfMissingTiles(Map<String, AsterTile> missingTilesMap) {
         StringBuilder builder = new StringBuilder();
         builder.append("\n** ASTER plugin run completed. ");
-        if (this.missingAsterTiles.isEmpty()) {
+        if (missingTilesMap.isEmpty()) {
             builder.append("There are NO missing tiles.");
         } else {
-            builder.append("There are ").append(this.missingAsterTiles.size()).append(" missing tiles: \n");
-            Iterator<String> it = this.missingAsterTiles.keySet().iterator();
+            builder.append("There are ").append(missingTilesMap.size()).append(" missing tiles: \n");
+            Iterator<String> it = missingTilesMap.keySet().iterator();
             int minNorth = 361, maxNorth = 0, minEast = 361, maxEast = 0;
             while (it.hasNext()) {
                 String filename = it.next();
-                AsterTile asterTile = this.missingAsterTiles.get(filename);
+                AsterTile asterTile = missingTilesMap.get(filename);
 
                 builder.append("\t").
                         append(filename).
@@ -496,10 +521,21 @@ public class AsterPlugin_task implements SinkSource, EntityProcessor {
                     append(generateWestEast(maxEast + 1)).
                     append(".\n").
                     append("It would include ").
-                    append((maxNorth + 1 - minNorth) * (maxEast + 1 - minEast) - this.missingAsterTiles.size()).
+                    append((maxNorth + 1 - minNorth) * (maxEast + 1 - minEast) - missingTilesMap.size()).
                     append(" unnecessary tiles.\n\n");
         }
         return builder.toString();
+    }
+
+    /**
+     * Generates a list (not what YOU think! A human readable list) of all the
+     * missing ASTER tiles, so that the user knows what (s)he has to download.
+     *
+     * @return A human readable list of all the missing tiles, together with a
+     * MUR for users who don't have time to do it tile by tile.
+     */
+    public String generateListOfMissingTiles() {
+        return AsterPlugin_task.generateListOfMissingTiles(this.missingAsterTiles);
     }
 
     /**
@@ -523,11 +559,25 @@ public class AsterPlugin_task implements SinkSource, EntityProcessor {
      * Stores the coordinates of an ASTER tile. Will be used for informing the
      * user about the missing ASTER tiles after finishing the OSMOSIS run.
      */
-    private class AsterTile {
+    public class AsterTile {
 
+        /**
+         * The latitude of the lower left corner of the missing tile.
+         */
         public int north;
+        /**
+         * The longitude of the lower left corner of the missing tile.
+         */
         public int east;
 
+        /**
+         * Creates an ASTER tile.
+         *
+         * @param north The latitude of the lower left corner of the missing
+         * tile.
+         * @param east The longitude of the lower left corner of the missing
+         * tile.
+         */
         public AsterTile(int north, int east) {
             this.north = north;
             this.east = east;
