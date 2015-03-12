@@ -48,6 +48,12 @@ public class AsterPlugin_task implements SinkSource, EntityProcessor {
      */
     private static final Logger log = Logger.getLogger(AsterPlugin_task.class.getName());
     /**
+     * Turn logger refreshing on / off. Don't ask me why, but sometimes, the
+     * whole logging just disappears. Set this to true for a very inelegant way
+     * of refreshing it.
+     */
+    private static final boolean REFRESH_LOGGER = false;
+    /**
      * The level of our logger.
      */
     private final Level logLevel = log.getLevel();
@@ -545,7 +551,7 @@ public class AsterPlugin_task implements SinkSource, EntityProcessor {
      * remember them.
      */
     private void refreshLogger() {
-        if (this.logLevel != null) {
+        if (REFRESH_LOGGER && this.logLevel != null) {
             log.setLevel(this.logLevel);
             this.logHandler.setLevel(this.logLevel);
             if (log.getHandlers().length == 0) {

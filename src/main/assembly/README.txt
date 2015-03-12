@@ -40,6 +40,8 @@ Plugin Version: #PLUGIN_VERSION#
     You can even use generateListOfMissingTiles(Map<String, AsterTile> missingTilesMap)
     to generate the message for you. :-)
     If you use Maven, remember to put the GeoTools repository into your pom.xml!
+    And also have a look at Issues/The logging desaster, which affects the use of 
+    this plugin as a library.
 
 3) Logging
     You can enable logging by adding the path to a logging.properties file of your
@@ -53,8 +55,12 @@ Plugin Version: #PLUGIN_VERSION#
         java.util.logging.ConsoleHandler.level = ALL
         net.bennokue.java.osmosis.plugins.aster.AsterPlugin_task.level = ALL
     Log levels can be: ALL, FINEST, FINER, FINE, CONFIG, INFO, WARNING, SEVERE, OFF.
+    See also: Issues/The logging desaster.
 
 4) Version history
+    1.1.1 (2015-03-12)
+        In order to narrow down the impact of the logging desaster (see Issues), 
+        internal changes have been made.
     1.1.0 (2015-03-11)
         API improvements (Better documentation and the possibility to provide a 
         HashMap where the plugin will store information about missing tiles, thus
@@ -66,7 +72,13 @@ Plugin Version: #PLUGIN_VERSION#
         project had been switched to Maven.
 
 5) Issues
-    None yet. =)
+    The logging desaster (UNFIXED)
+        Sometimes, the whole Java logging settings just disappear and all logging
+        stops working. The plugin has a method "refreshLogger()" that manually
+        resets the important settings (if you want to use it, set REFRESH_LOGGER 
+        to true), but this problem affects other loggers as well. So, it might be
+        the safest way to reload all logging settings after the call of this plugin,
+        as long as this issue is not fixed.
 
 6) Contact
     kuehnl@cip.ifi.lmu.de
